@@ -9,14 +9,39 @@ from threading import Thread
 import time
 load_dotenv()
 
-api_key=os.environ.get("OPENAI_API_KEY")
-openai.api_key = api_key
+try:
+    api_key=os.environ.get("OPENAI_API_KEY")
+    openai.api_key = api_key
+except:
+    print("OpenAI API Key not found")
+    exit()
 
 def num_tokens_from_string(string: str, encoding_name: str) -> int:
     """Returns the number of tokens in a text string."""
-    encoding = tiktoken.get_encoding(encoding_name)
+    # encoding = tiktoken.get_encoding(encoding_name)
+    encoding = tiktoken.encoding_for_model("gpt-4")
     num_tokens = len(encoding.encode(string))
     return num_tokens
+
+# def num_tokens_from_string(string: str, encoding_name: str) -> int:
+#     """Returns the number of tokens in a text string."""
+    
+#     # Assuming you want to use the Hugging Face transformers library for encoding
+#     try:
+#         from transformers import AutoTokenizer
+#     except ImportError:
+#         raise ImportError("Please install transformers library.")
+
+#     # Load the tokenizer
+#     tokenizer = AutoTokenizer.from_pretrained(encoding_name)
+#     wrapper = TokenizerWrapper(tokenizer)
+
+#     # Tokenize the string and count the number of tokens
+#     tokens = wrapper.encode(string)
+#     num_tokens = len(tokens)
+
+#     return num_tokens
+
 def fix_grammar(string,index):
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
@@ -41,7 +66,7 @@ def get_language(string):
         messages=[
             {"role": "system", "content": "You are a specialist in finding out what language a text is written in"},
             {"role": "user", "content": "Which language is the following text written in: "+ string},
-            {"role": "assistant", "content": "You have to find out what language the text is written in and reply with the language name only"},
+            {"role": "assistant", "content": "Reply with only the one word language name of the language the text is written in"},
         ]
     )
     result=response['choices'][0]['message']['content']
@@ -58,7 +83,8 @@ def translate(string,from_lang,to_lang,window,translated_chunks,index,tries=0):
             messages=[
                 {"role": "system", "content": "You are a the perfect translator for "+from_lang+" to "+to_lang+" your grammar is perfect and you know all the words in both languages the context remains the same and the meaning is the same. You can translate and keep the systax and grammar of the translation perfect."},
                 {"role": "user", "content": "Translate the following text from "+from_lang +"to" + to_lang+":"+ string},
-                {"role": "assistant", "content": "You have to translate the text from "+from_lang +"to" + to_lang+" and reply with the translated text only with perfect grammar and syntax and the meaning should be the same as the original text"},
+                # {"role": "assistant", "content": "You have to translate the text from "+from_lang +"to" + to_lang+" and reply with only the translated text ONLY this is of the utmost importance with perfect grammar and syntax and the meaning should be the same as the original text"},
+                {"role": "assistant", "content": "Translate the text from "+from_lang +" to " + to_lang+" and reply with only the translated part. You need to reply with ONLY the translated text!"},
             ]
         )
         result=response['choices'][0]['message']['content']
@@ -69,10 +95,11 @@ def translate(string,from_lang,to_lang,window,translated_chunks,index,tries=0):
     except Exception as e:
         print(e)
         if tries<=2:
-            time.sleep(5)
+            print("Retrying in 60 seconds")
+            time.sleep(60)
             translate(string,from_lang,to_lang,window,translated_chunks,index,tries=tries+1)
         else:
-            translated_chunks[index]="Translation failed of :\n"+string +"\n"
+            translated_chunks[index]="\nTranslation failed of :\n"+string +"\n"
 
 
 
@@ -81,22 +108,56 @@ def update_when_finished(chunks,window):
     completed_text=""
     for i in range(len(chunks)):
         completed_text+=chunks[i]
+    file_name=values['-OUTPUTNAME-']
+
+    window['-TRANSLATION_WORD_COUNT-'].update("Translation Word Count: "+str(len(completed_text.split())))
     window['-TRANSLATED_TEXT-'].update(completed_text)
+    f=open(file_name+".txt","w",encoding="utf-8")
+    f.write(completed_text)
+    f.close()
     window['-TRANSLATE-'].update(disabled=False)
 
-def split_text_into_chunks(string,chunk_size=2048):
-        # Read the entire file content
-        strings = [""]
-        i=0
-        for line in string.splitlines():
-            strings[i]+=line
+# def split_text_into_chunks(string,chunk_size=512):
+#         # Read the entire file content
+#         strings = [""]
+#         i=0
+#         for line in string.splitlines():
             
-            # Count the number of tokens
-            num_tokens = num_tokens_from_string(strings[i],"gpt2")
-            if num_tokens > chunk_size:
-                i+=1
-                strings.append("")
-        return strings
+#             # Count the number of tokens
+#             num_tokens = num_tokens_from_string(strings[i],"gpt2")
+#             prev_num_tokens=num_tokens_from_string(strings[i-1],"gpt2")
+#             print(num_tokens+prev_num_tokens)
+#             if num_tokens+prev_num_tokens > chunk_size:
+#                 i+=1
+#                 strings.append("")
+#                 strings[i]+=line
+#             else:
+#                 strings[i]+=line
+#         return strings
+def split_text_into_chunks(string, chunk_size=2048):
+    # Start with an empty chunk
+    chunks = [""]
+    i = 0
+
+    # Loop over each line in the string
+    for line in string.split("."):
+        # Add the current line to the current chunk
+        current_chunk = chunks[i] + line
+
+        # Count the number of tokens
+        num_tokens = num_tokens_from_string(current_chunk, "gpt-4")
+
+        # If the current chunk exceeds the chunk size limit, start a new chunk
+        if num_tokens > chunk_size:
+            # Start a new chunk with the current line
+            i += 1
+            chunks.append(line)
+        else:
+            # Otherwise, update the current chunk
+            chunks[i] = current_chunk
+
+    return chunks
+
 def get_only_lang(string):
         words=string.split(" ")
         lng=""
@@ -112,10 +173,11 @@ def verify_translation_and_correct(original_text,translation_text,from_lang,to_l
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are a the perfect translator for "+from_lang+" to "+to_lang+" your grammar is perfect and you know all the words in both languages the context remains the same and the meaning is the same. You can translate and keep the systax and grammar of the translation perfect."},
-                {"role": "user", "content": "I need to verify that the translation from "+from_lang +"to" + to_lang+" is correct and it has the correct meaning and correct grammar. Original Text: "+ original_text + " Translation: " + translation_text+"\nOnly and Only reply with the translated text regardless of whether you made any changes to the text or not this is of the atmost importance. The format and newlines need to stay the same as the original text."},
-                {"role": "assistant", "content": "You have to verify and correct so that the translation from "+from_lang +" to " + to_lang+" is correct and reply with the corrected text only with perfect grammar and syntax and the meaning should be the same as the original text.Only reply with the translated text regardless of whether you made any changes to the text or not."},
-            ]
+                {"role": "system", "content": "You are a the perfect translator for \""+from_lang+"\" to \""+to_lang+"\" your grammar is perfect and you know all the words in both languages the context remains the same and the meaning is the same. You can translate and keep the systax and grammar of the translation perfect."},
+                {"role": "user", "content": "I need to verify that the translation from \""+from_lang +"\" to \"" + to_lang+"\" is correct and it has the correct meaning and correct grammar. Original Text: \""+ original_text + "\" Translation: \"" + translation_text+"\"\nOnly and Only reply with the translated text regardless of whether you made any changes to the text or not this is of the atmost importance. The format and newlines need to stay the same as the original text."},
+                {"role": "assistant", "content": "You have to verify and correct so that the translation from \""+from_lang +"\" to \"" + to_lang+"\" is correct and reply with the corrected text ONLY (of utmost importance to reply with the tranlated text only) with perfect grammar and syntax and the meaning should be the same as the original text.VERY IMPORTANT : Only reply with the translated text regardless of whether you made any changes to the text or not."},
+            ],
+            temperature=0.1,
         )
         result=response['choices'][0]['message']['content']
         return result
@@ -127,17 +189,23 @@ def verify_translation_and_correct(original_text,translation_text,from_lang,to_l
 def thread_handler(chunks,lang,window,values):
         threads=[]
         translated_chunks=[""]*len(chunks)
+        num_wait_for_threads=values['-SLIDER-']
 
         for i in range(len(chunks)):
             # translate(string,from_lang,to_lang,window,translated_chunks,index,tries=0)
-            Thread(target=translate,args=(chunks[i],lang,values["-LANGTO-"],window,translated_chunks,i)).start()
-            if i%5==0:
-                print("Waiting for threads to finish..."+str(i))
-                for thread in threads:
-                    thread.join()
+            thread=Thread(target=translate,args=(chunks[i],lang,values["-LANGTO-"],window,translated_chunks,i))
+            thread.start()
+            threads.append(thread)
+            if (i+1)%num_wait_for_threads==0:
+                print("Waiting for"+str(num_wait_for_threads)+" threads to finish..."+str(i))
+                for thread_ in threads:
+                    thread_.join()
                 threads=[]
+        for thread_ in threads:
+            thread_.join()
         print("Threads finished")
         Thread(target=update_when_finished,args=(translated_chunks,window)).start()
+
                 
 
 if __name__ == "__main__":
@@ -272,7 +340,22 @@ if __name__ == "__main__":
     "Yoruba",
     "Zulu"
 ]
-
+    
+    ui_translation_lang_column = [
+        [sg.Text("OPEN-API Key:")],
+        [sg.Input(key="-API_KEY-",default_text='')],
+        [sg.Button("Set Key",key="-SET_KEY-")],
+        [sg.Text("Original Words: 0",key='-ORGINAL_WORD_COUNT-')],
+        [sg.Text("Translation Word count:",key='-TRANSLATION_WORD_COUNT-')],
+        [sg.Text("Select number of threads:")],
+        [sg.Slider(range=(1, 30), default_value=5, size=(20, 15), orientation='horizontal', key='-SLIDER-')],
+        [sg.Text('From None',key='-ORIGINAL_LANGUAGE-')],
+        [sg.Text("Translate to:")], 
+        [sg.Combo(lang_to, default_value='English', key='-LANGTO-', size=(20, 1))],
+        [sg.Button("Translate",key="-TRANSLATE-")],
+        [sg.Text('Output File Name:')],
+        [sg.Input(key='-OUTPUTNAME-',default_text='translation')],
+         ]
     layout = [
         [
             sg.Column(file_list_column),
@@ -280,7 +363,7 @@ if __name__ == "__main__":
             sg.Column(original_lang_text_viewer_column),
             sg.VSeperator(),
 
-            sg.Column([[sg.Text('From None',key='-ORIGINAL_LANGUAGE-')],[sg.Text("Translate to:")], [sg.Combo(lang_to, default_value='English', key='-LANGTO-', size=(20, 1))],[sg.Button("Translate",key="-TRANSLATE-"),]]),
+            sg.Column(ui_translation_lang_column),
             sg.VSeperator(),
             sg.Column(translated_lang_text_viewer_column),
         ]
@@ -322,10 +405,11 @@ if __name__ == "__main__":
                     string=f.read()
                     window["-ORIGINAL_TEXT-"].update(string)
                 chunks=split_text_into_chunks(string,500)
-                test_chunks=chunks[random.randint(0,len(chunks)-1)]+chunks[random.randint(0,len(chunks)-1)]+chunks[random.randint(0,len(chunks)-1)]
+                test_chunks=chunks[random.randint(0,len(chunks)-1)]
                 lang=get_language(test_chunks)
                 lng=get_only_lang(lang)
                 window["-ORIGINAL_LANGUAGE-"].update("From " + lng)
+                window["-ORGINAL_WORD_COUNT-"].update("Original Words: "+str(len(string.split())))
             except Exception as e:
                 print("Error: ",e)
 
@@ -333,16 +417,17 @@ if __name__ == "__main__":
                 # window["-TEXT-"].update(filename=filename)
                 # print(values["-ORIGINAL_TEXT-"])
                 string=values["-ORIGINAL_TEXT-"]
-                chunks=split_text_into_chunks(string,500)
-                test_chunks=chunks[random.randint(0,len(chunks)-1)]+chunks[random.randint(0,len(chunks)-1)]+chunks[random.randint(0,len(chunks)-1)]
+                chunks=split_text_into_chunks(string)
+                test_chunks=chunks[random.randint(0,len(chunks)-1)]
                 lang=get_language(test_chunks)
                 lng=get_only_lang(lang)
                 window["-ORIGINAL_LANGUAGE-"].update("From " + lng)
                 
-                Thread(target=thread_handler,args=(chunks,lang,window,values)).start()
-                
-                pass
+                t=Thread(target=thread_handler,args=(chunks,lang,window,values)).start()
+        elif event == "-SET_KEY-":
+            openai.api_key = values["-API_KEY-"]
 
+                
     window.close()
 
     exit()

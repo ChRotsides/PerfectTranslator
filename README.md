@@ -3,7 +3,7 @@
 
  ## PySimpleGUI-OpenAI GPT Translation App
 This is a simple GUI application that utilizes the PySimpleGUI library for Python to create an easy-to-use interface for text file translation, powered by OpenAI's GPT.
-
+!["Demo"]("translationDemo2.gig")
 ### Features
 - File browsing: The user can select a directory and it will display all text files in the directory.
 - Text Display: Displays the content of the selected text file.

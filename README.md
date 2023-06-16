@@ -31,4 +31,5 @@ Steps 2-4 can be skipped if you prefer to input your OpenAI API key directly via
 5. The file's contents will be displayed in the window. The original language will also be identified.
 6. Click on the "Translate" button to start the translation process. The translated text will be displayed once the process is complete.
 
-Note: This script assumes you have necessary permissions and an active OpenAI account with a valid API key for using OpenAI's GPT.
+#### Note: 
+This script assumes you have necessary permissions and an active OpenAI account with a valid API key for using OpenAI's GPT.

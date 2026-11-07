@@ -2,7 +2,6 @@
 
 from types import SimpleNamespace
 
-import httpx
 import openai
 import pytest
 
@@ -32,8 +31,14 @@ class FakeClient:
         return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
+def _request():
+    # The SDK error classes only read a few attributes, so a stand-in avoids
+    # depending on which HTTP library (httpx / httpx2) the installed SDK uses.
+    return SimpleNamespace(method="POST", url="https://api.invalid/v1/chat/completions")
+
+
 def _response(status):
-    return httpx.Response(status, request=httpx.Request("POST", "https://api.invalid/v1/chat/completions"))
+    return SimpleNamespace(status_code=status, headers={}, request=_request(), text="", json=lambda: {})
 
 
 def rate_limit_error():
@@ -49,7 +54,7 @@ def auth_error():
 
 
 def connection_error():
-    return openai.APIConnectionError(request=httpx.Request("POST", "https://api.invalid"))
+    return openai.APIConnectionError(request=_request())
 
 
 @pytest.fixture

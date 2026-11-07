@@ -136,7 +136,7 @@ imports); it is not driven automatically. CI (`.github/workflows/ci.yml`) runs r
 ## License
 
 Free for noncommercial and research use under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use
-requires a separate license; contact [lhampis@gmail.com](mailto:lhampis@gmail.com).
+requires a separate license; contact [charalambosrotsides@gmail.com](mailto:charalambosrotsides@gmail.com) or [charalambosrotsides@outlook.com](mailto:charalambosrotsides@outlook.com).
 
 Third-party libraries keep their own licenses: FreeSimpleGUI (LGPL-3.0-or-later), the `openai` SDK (Apache-2.0) and
 `python-dotenv` (BSD-3-Clause).

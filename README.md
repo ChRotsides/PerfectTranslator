@@ -85,7 +85,7 @@ the default value work too.
 ```python
 from perfect_translator.core import translate_file
 
-result = translate_file("TextSamples/GreekShortSampleText.txt", "out.txt", target="English", workers=3)
+result = translate_file("story.txt", "story.en.txt", target="English", workers=3)
 print(result.source_language, result.chunk_count, result.failed_chunks)
 ```
 
@@ -116,8 +116,7 @@ imports); it is not driven automatically. CI (`.github/workflows/ci.yml`) runs r
 - **Formatting.** Only plain UTF-8 `.txt` files are supported. Line breaks are kept and the prompt asks the model to
   preserve structure, but the model may still change spacing or punctuation. Other encodings are rejected with an
   error.
-- **Quality is the model's.** There is no automatic quality check beyond the optional review pass, and the sample
-  outputs in `TextSamples/` were produced with older models.
+- **Quality is the model's.** There is no automatic quality check beyond the optional review pass.
 - **Not covered by automated tests:** the live API round trip and the GUI event loop.
 
 ## Roadmap
